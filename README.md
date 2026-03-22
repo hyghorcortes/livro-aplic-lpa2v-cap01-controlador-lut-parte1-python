@@ -49,27 +49,28 @@ O texto do capítulo apresenta o Para-Analisador como base conceitual da classif
 O Mermaid abaixo foi escrito para acompanhar o fluxo do exemplo do livro em versão Python.
 
 ```mermaid
-flowchart TB
+flowchart LR
+    A["Referência r(t)"] --> B["Somador<br/>e(t) = r(t) - y(t)"]
+    Y["Saída y(t)"] --> B
 
-    A[Início] --> B[Definir parâmetros<br/>da simulação]
-    B --> C[Gerar referência<br/>r(t)]
-    C --> D[Calcular erro<br/>e(t) = r(t) - y(t)]
+    B --> C["Pré-processamento C04"]
+    C --> D["Normalização"]
+    D --> E["mu = sat(y/escala)"]
+    D --> F["lambda = sat(r/escala)"]
+    E --> G["Gc = mu - lambda"]
+    F --> G
+    E --> H["Gct = mu + lambda - 1"]
+    F --> H
+    G --> I["Classificador de estado lógico"]
+    H --> I
+    I --> J["LUT: k_e = LUT(estado)"]
+    J --> K["Erro ajustado<br/>e'(t) = k_e * e(t)"]
 
-    D --> E[Pré-processamento C04]
-    E --> F[Normalizar sinais e obter<br/>mu e lambda]
-    F --> G[Calcular<br/>Gc = mu - lambda]
-    G --> H[Calcular<br/>Gct = mu + lambda - 1]
-    H --> I[Classificar estado lógico<br/>a partir de Gc e Gct]
-    I --> J[Consultar LUT<br/>k_e = LUT(estado)]
-    J --> K[Formar erro ajustado<br/>e'(t) = k_e * e(t)]
-
-    K --> L[Controlador PI/PID]
-    L --> M[Sinal de controle<br/>u(t)]
-    M --> N[Planta<br/>G(s) = 1 / (s + 1)]
-    N --> O[Saída<br/>y(t)]
-    O --> D
-
-    O --> P[Salvar gráficos,<br/>CSV e métricas]
+    K --> L["Controlador PI/PID"]
+    L --> M["Sinal de controle u(t)"]
+    M --> N["Planta<br/>G(s) = 1/(s+1)"]
+    N --> Y
+    Y --> P["Salvar gráficos, CSV e métricas"]
 ```
 
 ---
