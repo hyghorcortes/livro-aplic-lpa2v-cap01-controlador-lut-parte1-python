@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cp-lut-cap01"
+version = "1.0.0"
+description = "Exemplo 1 do Capítulo 1: Controlador Paraconsistente Baseado em LUT (CP-LUT)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Hyghor Miranda Côrtes" },
+  { name = "Paulo Santos" }
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "matplotlib>=3.7",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

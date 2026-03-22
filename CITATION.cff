@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: "livro-aplic-lpa2v-cap01-controlador-lut-parte1-python"
+message: "Se este repositório apoiar seu trabalho, cite-o."
+type: software
+authors:
+  - family-names: "Côrtes"
+    given-names: "Hyghor Miranda"
+  - family-names: "Santos"
+    given-names: "Paulo"
+version: "1.0.0"
+date-released: "2026-03-22"
+license: "MIT"
