@@ -1,8 +1,8 @@
-# livro-aplic-lpa2v-cap01-controlador-lut-parte1-python
+# Livro Aplicações de LPA2v — Capítulo 1: Robô Emmy - Parte 1 (Webots)
 
-Implementação em Python do **Exemplo 1 do Capítulo 1**, vinculada ao livro **Aplicações de LPA2v**.
+Implementação em Webots do exemplo **"Robô Emmy - Parte 1"**, pertencente ao **Capítulo 1** do livro **Aplicações de LPA2v**.
 
-Este repositório reúne a versão organizada do exemplo do **Controlador Paraconsistente Baseado em LUT (CP-LUT)**, mantendo a ideia central do capítulo: calcular o erro de rastreamento, aplicar o pré-processamento lógico C04, obter `Gc` e `Gct`, classificar o estado lógico, consultar a LUT e então ajustar o erro antes do controlador PI/PID.
+Este repositório reúne a simulação, o controlador e a documentação do exemplo, mantendo a lógica central do fluxo oficial do capítulo: leitura dos sensores, filtragem, cálculo de evidências, decisão paraconsistente, tratamento de escape, rotinas do artigo e fallback contínuo.
 
 ---
 
@@ -17,100 +17,141 @@ livro-aplic-lpa2v-capXX-nome-do-exemplo-parteY-tecnologia
 Nome deste repositório:
 
 ```text
-livro-aplic-lpa2v-cap01-controlador-lut-parte1-python
+livro-aplic-lpa2v-cap01-robo-emmy-parte1-webots
 ```
 
 ---
 
 ## Objetivo do exemplo
 
-Este exemplo mostra, em ambiente Python, uma versão reproduzível do **CP-LUT**, destacando:
+Este exemplo mostra, em ambiente Webots, uma versão aplicada do **Robô Emmy - Parte 1**, destacando:
 
-- cálculo do erro `e(t) = r(t) - y(t)`;
-- normalização dos sinais para a camada LPA2v;
-- obtenção de `mu`, `lambda`, `Gc` e `Gct`;
-- classificação do estado lógico;
-- consulta da tabela LUT para obter `k_e`;
-- formação do erro ajustado `e'(t) = k_e * e(t)`;
-- ação do controlador PI/PID;
-- resposta da planta de primeira ordem `G(s)=1/(s+1)`;
-- geração de gráficos e exportação de CSV.
-
----
-
-## Observação importante sobre os estados
-
-O texto do capítulo apresenta o Para-Analisador como base conceitual da classificação por `Gc` e `Gct`. Nesta implementação Python, foi preservada a **LUT prática de 14 estados** da versão convertida do código C04, incluindo variantes como **Inconsistente + / -** e **Indeterminado + / -**. O núcleo lógico continua sendo o mesmo: a decisão depende da posição do ponto no plano definido por `Gc` e `Gct`.
+- leitura e tratamento dos sensores laterais;
+- filtragem das distâncias com EMA;
+- cálculo de variáveis intermediárias para navegação;
+- uso do **Para-Analisador** para obter estado, `Gc` e `Gct`;
+- mapeamento do estado lógico para rotinas normais;
+- detecção de perigo forte e condição de `stuck`;
+- ativação e atualização da máquina de estados de **ESCAPE**;
+- uso combinado de rotina, cooldown e fallback contínuo;
+- envio final das velocidades aos motores.
 
 ---
 
-## Diagrama do fluxo do exemplo
+## Diagrama do fluxo oficial do exemplo
 
-O Mermaid abaixo foi escrito para acompanhar o fluxo do exemplo do livro em versão Python.
+O Mermaid abaixo foi escrito para acompanhar o **fluxo oficial do livro**, preservando a mesma sequência lógica principal e a mesma nomenclatura central dos blocos, mas com quebras de linha nos rótulos para evitar cortes na renderização do GitHub.
 
 ```mermaid
-flowchart LR
-    A["Referência r(t)"] --> B["Somador<br/>e(t) = r(t) - y(t)"]
-    Y["Saída y(t)"] --> B
+flowchart TB
 
-    B --> C["Pré-processamento C04"]
-    C --> D["Normalização"]
-    D --> E["mu = sat(y/escala)"]
-    D --> F["lambda = sat(r/escala)"]
-    E --> G["Gc = mu - lambda"]
-    F --> G
-    E --> H["Gct = mu + lambda - 1"]
-    F --> H
-    G --> I["Classificador de estado lógico"]
-    H --> I
-    I --> J["LUT: k_e = LUT(estado)"]
-    J --> K["Erro ajustado<br/>e'(t) = k_e * e(t)"]
+    A[Início /<br/>inicialização] --> B[Configura motores,<br/>sensores e parâmetros]
+    B --> C[Loop principal<br/>do Webots]
 
-    K --> L["Controlador PI/PID"]
-    L --> M["Sinal de controle u(t)"]
-    M --> N["Planta<br/>G(s) = 1/(s+1)"]
-    N --> Y
-    Y --> P["Salvar gráficos, CSV e métricas"]
+    C --> D[Ler ds_left<br/>e ds_right]
+    D --> E[Filtrar distâncias<br/>com EMA]
+    E --> F[Calcular dmin,<br/>err e head_on]
+    F --> G[Definir<br/>turn_dir]
+    G --> H{Warmup filt &lt;=<br/>10 passos?}
+
+    H -- Sim --> I[Anda devagar em<br/>linha reta]
+    H -- Não --> J[Calcular μ_raw<br/>e λ_raw]
+
+    J --> K[Aplicar EMA e limiter<br/>de slew em μ e λ]
+    K --> L[Clamp em<br/>0..1]
+    L --> M[Para-Analisador:<br/>obter state, Gc, Gct]
+    M --> N[Mapear state para rotina<br/>normal R1...R13]
+    N --> O[Atualizar<br/>avoid_mode]
+    O --> P[Atualizar histórico e<br/>detectar stuck]
+    P --> Q{Perigo forte<br/>ou stuck?}
+
+    Q -- Sim --> R[Iniciar H_A/P e<br/>parar rotina]
+    Q -- Não --> S[Manter lógica<br/>atual]
+
+    R --> T[Atualizar máquina de<br/>estados ESCAPE]
+    S --> T
+
+    T --> U{ESCAPE<br/>alive?}
+
+    U -- Sim --> V{Modo<br/>ESCAPE}
+    V -- BACK --> W[Ré curva]
+    V -- PIVOT --> X[Giro no eixo]
+    V -- EXIT --> Y[Saída lenta<br/>com curva]
+
+    U -- Não --> Z{Cooldown<br/>ativo?}
+    Z -- Sim --> AA[Movimento lento com<br/>curva de saída]
+    Z -- Não --> AB{Rotina do artigo<br/>ativa?}
+
+    AB -- Sim --> AC[Executar ação atual<br/>da rotina]
+    AB -- Não --> AD{Estado estável por<br/>alguns ciclos?}
+
+    AD -- Sim --> AE[Iniciar rotina<br/>R1...R13]
+    AE --> AC
+
+    AD -- Não --> AF[Controle contínuo<br/>de fallback]
+    AF --> AG[Definir velocidade<br/>base]
+    AG --> AH[Calcular turn pelo<br/>erro lateral]
+    AH --> AI[Somar repulsão por<br/>proximidade]
+    AI --> AJ[Aplicar mínimos de giro<br/>e head_on]
+    AJ --> AK[Adicionar wander<br/>se livre]
+
+    I --> AL[Enviar velocidades<br/>aos motores]
+    W --> AL
+    X --> AL
+    Y --> AL
+    AA --> AL
+    AC --> AL
+    AK --> AL
+
+    AL --> C
 ```
 
 ---
 
 ## Como interpretar o diagrama
 
-### 1. Erro de rastreamento
+### 1. Inicialização e loop principal
 
-O sistema calcula a diferença entre a referência e a saída da planta.
+A execução começa com a inicialização do controlador, configuração dos motores, sensores e parâmetros, e entrada no loop principal do Webots.
 
-### 2. Pré-processamento lógico
+### 2. Leitura, filtragem e variáveis geométricas
 
-O bloco C04 converte a condição do sistema em uma representação compatível com a LPA2v.
+Dentro do loop, o controlador lê `ds_left` e `ds_right`, filtra as distâncias com EMA e calcula grandezas como `dmin`, `err` e `head_on`, além de definir `turn_dir`.
 
-### 3. Indicadores lógicos
+### 3. Warmup inicial
 
-A partir de `mu` e `lambda`, o código obtém:
+Nos primeiros passos, o sistema mantém um comportamento mais simples e conservador, andando devagar em linha reta.
 
-- `Gc = mu - lambda`
-- `Gct = mu + lambda - 1`
+### 4. Cálculo das evidências e análise paraconsistente
 
-### 4. Estado lógico e LUT
+Depois do warmup, o controlador calcula `μ_raw` e `λ_raw`, suaviza esses sinais, aplica limites e executa o **Para-Analisador**, que fornece `state`, `Gc` e `Gct`.
 
-O par `(Gc, Gct)` é classificado em um estado discreto. Em seguida, a LUT associa esse estado a um ganho `k_e`.
+### 5. Rotina normal, avoid mode e stuck
 
-### 5. Erro ajustado e controle
+O estado produzido pelo analisador é mapeado para rotinas normais (`R1...R13`). Em seguida, o sistema atualiza `avoid_mode`, mantém histórico e verifica situações de perigo forte ou de travamento (`stuck`).
 
-O erro original é multiplicado por `k_e`, gerando `e'`. Esse sinal é enviado ao PI/PID.
+### 6. Máquina de estados ESCAPE
 
-### 6. Planta e realimentação
+Se houver perigo forte ou `stuck`, o sistema interrompe a rotina e atualiza a máquina de estados de **ESCAPE**. Quando o escape está ativo, a ação aplicada depende do modo selecionado:
 
-O sinal de controle atua sobre a planta `G(s)=1/(s+1)` e a saída retorna à malha.
+- `BACK` → ré curva;
+- `PIVOT` → giro no eixo;
+- `EXIT` → saída lenta com curva.
 
-### 7. Saídas do repositório
+### 7. Cooldown, rotina do artigo e fallback
 
-O projeto pode gerar:
+Quando o escape não está ativo, o fluxo avalia:
 
-- figura com a resposta temporal;
-- CSV com sinais intermediários;
-- métricas como valor final, overshoot e tempo de acomodação.
+- se o sistema está em **cooldown**;
+- se existe uma **rotina do artigo** ativa;
+- se já há **estado estável** para iniciar uma nova rotina;
+- ou se deve usar o **controle contínuo de fallback**.
+
+No fallback contínuo, a velocidade final é obtida a partir de uma sequência de etapas: velocidade base, turn pelo erro lateral, repulsão por proximidade, mínimos de giro/head_on e wander quando o espaço está livre.
+
+### 8. Envio de velocidades
+
+Independentemente do ramo seguido, o fluxo converge para o envio das velocidades aos motores e então retorna ao loop principal do Webots.
 
 ---
 
@@ -118,34 +159,24 @@ O projeto pode gerar:
 
 ```text
 .
+├── .github/
 ├── assets/
-│   └── previews/
-│       └── cp_lut_resposta.png
+├── controllers/
+│   └── drive_my_robot/
+│       └── drive_my_robot.py
 ├── docs/
-│   ├── book-context.md
-│   ├── project-overview.md
-│   └── repository-structure.md
-├── scripts/
-│   ├── pre_processa_erro_c04.py
-│   └── simula_pid_c04_malha_fechada.py
-├── src/
-│   └── cp_lut/
-│       ├── __init__.py
-│       ├── preprocessamento_c04.py
-│       └── simulacao_c04.py
-├── tests/
-│   └── test_smoke.py
+├── libraries/
+├── plugins/
+├── protos/
+├── worlds/
 ├── .gitignore
 ├── CHANGELOG.md
 ├── CITATION.cff
 ├── CODE_OF_CONDUCT.md
-├── COMO_SUBSTITUIR.md
 ├── CONTRIBUTING.md
 ├── IMPORTAR_NO_GITHUB.md
 ├── LICENSE
-├── pyproject.toml
 ├── README.md
-├── requirements.txt
 └── SECURITY.md
 ```
 
@@ -153,63 +184,29 @@ O projeto pode gerar:
 
 ## Como executar
 
-### Instalação local
-
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-
-### Rodando o script principal
-
-```bash
-python scripts/simula_pid_c04_malha_fechada.py --save-dir results
-```
-
-### Rodando com exibição de figura
-
-```bash
-python scripts/simula_pid_c04_malha_fechada.py --show --save-dir results
-```
+1. Abra o projeto no Webots.
+2. Carregue o mundo correspondente dentro da pasta `worlds/`.
+3. Verifique se o controlador configurado é `controllers/drive_my_robot/drive_my_robot.py`.
+4. Execute a simulação.
+5. Observe o comportamento do robô no loop de navegação, na ativação de escape e na lógica de fallback.
 
 ---
 
-## Arquivos principais
+## Arquivo principal do controlador
 
-### Pacote principal
-
-```text
-src/cp_lut/
-```
-
-### Script de pré-processamento
+Arquivo principal:
 
 ```text
-scripts/pre_processa_erro_c04.py
+controllers/drive_my_robot/drive_my_robot.py
 ```
 
-### Script de simulação
-
-```text
-scripts/simula_pid_c04_malha_fechada.py
-```
-
----
-
-## Saídas esperadas
-
-Ao executar a simulação, o repositório gera:
-
-- `results/cp_lut_resposta.png`
-- `results/cp_lut_resultados.csv`
-
-A pasta `assets/previews/` já inclui uma figura de preview pronta para o GitHub.
+Esse arquivo concentra a lógica de leitura de sensores, cálculo das evidências, chamada do analisador, escolha de rotinas, gerenciamento do escape e envio de velocidades aos motores.
 
 ---
 
 ## Relação com o livro
 
-Este repositório corresponde ao **Exemplo 1 do Capítulo 1** e foi organizado para funcionar como material complementar do texto do livro.
+Este repositório corresponde a um exemplo individual de um conjunto maior de exemplos do livro. A intenção é manter cada exemplo isolado, reutilizável e versionável, sem perder a coerência com a organização global da obra.
 
 ---
 
@@ -221,4 +218,4 @@ Consulte o arquivo `LICENSE`.
 
 ## Citação
 
-Consulte o arquivo `CITATION.cff`.
+Se este repositório for usado em material acadêmico, consulte o arquivo `CITATION.cff`.
